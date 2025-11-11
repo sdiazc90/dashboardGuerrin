@@ -13,6 +13,4 @@ docker-compose.override.yml
 # ========================================
 reseñas_ejemplo.csv
 reseñas_rapido.txt
-banner.jpg
-banner1.jpg
 .dockerignore
