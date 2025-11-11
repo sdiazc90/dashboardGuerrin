@@ -4,7 +4,6 @@
 # ========================================
 # 🐳 DOCKER Y ENTORNOS
 # ========================================
-docker-compose.override.yml
 .dockerignore
 docker-compose.yml
 calculos.py
@@ -17,3 +16,5 @@ tocsv.py
 reseñas_ejemplo.csv
 reseñas_rapido.txt
 .dockerignore
+requirements.txt
+
