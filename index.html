@@ -121,14 +121,27 @@
             width: 100%;
             flex: 1 1 auto;
         }
-        .chart-title { font-size:1.2em; color:#333; margin-bottom:15px; padding-bottom:10px; border-bottom:2px solid #667eea; }
+        .chart-title { font-size:1.2em; color:#333; margin-bottom:15px; padding-bottom:10px; border-bottom:2px solid #28a745; }
         .full-width { grid-column: 1 / -1; }
-
+        
         .examples-section { margin-top:30px; }
-        .comment-card { background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; border-left:4px solid #667eea; }
+        .comment-card { background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px; border-left:4px solid #28a745;border-right:4px solid #28a745; }
+        /* Comentarios negativos (rojo como el botón negativo) */
+                /* Asegurar que la clase 'negativo' cambie ambos bordes */
+        .comment-card.negativo {
+            border-left-color: #dc3545 !important;
+            border-right-color: #dc3545 !important;
+        }
+
+
         .comment-header { display:flex; justify-content:space-between; margin-bottom:10px; font-weight:600; }
         .comment-text { color:#555; line-height:1.6; }
         .comment-meta { font-size:0.9em; color:#888; margin-top:8px; }
+
+        .random-buttons { display:flex; gap:12px; margin-top:18px; margin-bottom:18px; }
+        .btn { padding:10px 14px; border-radius:8px; border:none; cursor:pointer; font-weight:600; }
+        .btn-positive { background:#28a745; color:white; }
+        .btn-negative { background:#dc3545; color:white; }
 
         .loading { text-align:center; padding:40px; color:#667eea; font-size:1.2em; }
         .hidden { display:none; }
@@ -137,7 +150,9 @@
             .range-wrap input[type="range"]::-webkit-slider-thumb { width:14px; height:14px; border-width:2px; }
             .chart-container { min-height: 380px; }
             #radarChart, #histChart, #palabrasChart, #temporalChart { min-height: 280px; }
+            .random-buttons { flex-direction:column; }
         }
+       
     </style>
 </head>
 <body>
@@ -180,6 +195,16 @@
 
             <div class="examples-section">
                 <h2 style="color: #667eea; margin-bottom: 20px;">📝 Ejemplos de Comentarios</h2>
+
+                <!-- botones para comentarios aleatorios -->
+                <div class="random-buttons">
+                    <button id="randomPosBtn" class="btn btn-positive">🎲 3 positivos aleatorios (≥4)</button>
+                    <button id="randomNegBtn" class="btn btn-negative">🎲 3 negativos aleatorios (≤2)</button>
+                </div>
+
+                <div id="randomPosContainer"></div>
+                <div id="randomNegContainer"></div>
+
                 <div id="ejemplosPositivos"></div>
                 <div id="ejemplosNegativos"></div>
             </div>
@@ -194,7 +219,7 @@
         // Plotly: solo toImage
         const plotlyConfig = { responsive: true, displaylogo: false, modeBarButtons: [['toImage']] };
 
-        const tryFiles = ["reseñas.csv"];
+        const tryFiles = ["reseñas_juntas.csv"];
         const loadCsvAttempts = async () => {
             for (let name of tryFiles) {
                 try {
@@ -289,29 +314,29 @@
 
         // --- procesamiento y métricas ---
         function procesarDatos() {
-            dataGlobal = dataGlobal.filter(row => row.Puntuación && row.Puntuación.toString().trim() !== '');
+            // conservar solo filas con Puntuación válida
+            dataGlobal = dataGlobal.filter(row => row["Puntuación"] && String(row["Puntuación"]).trim() !== '');
             dataGlobal.forEach(row => {
-                row.Puntuación = parseFloat(row.Puntuación) || 0;
-                row.Comida = parseFloat(row.Comida) || 0;
-                row.Servicio = parseFloat(row.Servicio) || 0;
-                row.Ambiente = parseFloat(row.Ambiente) || 0;
+                row.Puntuación = parseFloat(row["Puntuación"]) || 0;
+                row.Comida = parseFloat(row["Comida"]) || 0;
+                row.Servicio = parseFloat(row["Servicio"]) || 0;
+                row.Ambiente = parseFloat(row["Ambiente"]) || 0;
             });
 
-            actualizarEstadisticas();
+            // NOTA: ahora las estadísticas se calculan sobre el conjunto filtrado
             actualizarGraficos();
         }
 
-        function actualizarEstadisticas() {
-            const neutralCount = dataGlobal.filter(r => Math.round(r.Puntuación) === 3).length;
-            const negatives = dataGlobal.filter(r => r.Puntuación < 3).length;
-            const total = dataGlobal.length;
-            const promedio = dataGlobal.length ? (dataGlobal.reduce((sum, row) => sum + row.Puntuación, 0) / dataGlobal.length) : 0;
+        // ahora acepta un conjunto de datos (filtrado) para calcular métricas
+        function actualizarEstadisticas(data = dataGlobal) {
+            const neutralCount = data.filter(r => Math.round(r.Puntuación) === 3).length;
+            const negatives = data.filter(r => r.Puntuación < 3).length;
+            const total = data.length;
+            const promedio = total ? (data.reduce((sum, row) => sum + row.Puntuación, 0) / total) : 0;
 
-            // Calcular ratios respecto al total
             const neutralRatio = total > 0 ? ((neutralCount / total) * 100).toFixed(2) : 0;
             const negativeRatio = total > 0 ? ((negatives / total) * 100).toFixed(2) : 0;
 
-            // Mostrar en formato: cantidad/total (porcentaje%)
             document.getElementById('cantidadNeutrales').textContent = `${neutralCount}/${total} (${neutralRatio}%)`;
             document.getElementById('promedioScore').textContent = promedio.toFixed(2);
             document.getElementById('ratioNegPos').textContent = `${negatives}/${total} (${negativeRatio}%)`;
@@ -329,6 +354,9 @@
         function actualizarGraficos() {
             const dataFiltrada = filtrarDatos();
             document.getElementById('filtradas').textContent = dataFiltrada.length;
+
+            // actualizar ESTADISTICAS en función del filtro actual
+            actualizarEstadisticas(dataFiltrada);
 
             crearRadarChart(dataFiltrada);
             crearHistograma(dataFiltrada);
@@ -624,40 +652,45 @@
             Plotly.newPlot('temporalChart', [trace], layout, plotlyConfig);
         }
 
-        function mostrarEjemplos(data) {
-            const positivos = data.filter(r => r.Puntuación >= 4 && r.Comentario).slice(0, 3);
-            const negativos = data.filter(r => r.Puntuación <= 2 && r.Comentario).slice(0, 3);
+            function mostrarEjemplos(data){
+        // Mezclar reseñas aleatoriamente
+        const mezcladas = data.sort(() => Math.random() - 0.5);
 
-            let htmlPos = '<h3 style="color: #28a745; margin-bottom: 15px;">✨ Comentarios Positivos</h3>';
-            positivos.forEach(r => {
-                htmlPos += `
-                    <div class="comment-card">
-                        <div class="comment-header">
-                            <span>⭐ ${r.Puntuación} - ${r.Nombre || 'Anónimo'}</span>
-                            <span>${r.Fecha || ''}</span>
-                        </div>
-                        <div class="comment-text">${r.Comentario}</div>
-                        ${r['Platos recomendados'] ? `<div class="comment-meta">🍽️ ${r['Platos recomendados']}</div>` : ''}
+        // Separar por puntuación
+        const positivas = mezcladas.filter(r => parseFloat(r["Puntuación"]) >= 4);
+        const negativas = mezcladas.filter(r => parseFloat(r["Puntuación"]) <= 2);
+
+        // Tomar algunas al azar
+        const tomarEjemplos = (arr, n) => arr.slice(0, Math.min(n, arr.length));
+
+        const posEjemplo = tomarEjemplos(positivas, 3);
+        const negEjemplo = tomarEjemplos(negativas, 3);
+
+        // Formato de cada comentario (sin platos recomendados)
+            const formatearComentario = r => {
+            const claseExtra = r["Puntuación"] <= 2 ? "negativo" : "";
+            return `
+                <div class="comment-card ${claseExtra}">
+                    <div class="comment-header">
+                        <b>${r.Nombre || "Anónimo"}</b> ⭐${r["Puntuación"]}
                     </div>
-                `;
-            });
+                    <div class="comment-body">${r.Comentario || "(sin comentario)"}</div>
+                    <div class="comment-date">${r.Fecha || ""}</div>
+                </div>
+            `;
+        };
 
-            let htmlNeg = '<h3 style="color: #dc3545; margin: 30px 0 15px;">⚠️ Comentarios Negativos</h3>';
-            negativos.forEach(r => {
-                htmlNeg += `
-                    <div class="comment-card" style="border-left-color: #dc3545;">
-                        <div class="comment-header">
-                            <span>⭐ ${r.Puntuación} - ${r.Nombre || 'Anónimo'}</span>
-                            <span>${r.Fecha || ''}</span>
-                        </div>
-                        <div class="comment-text">${r.Comentario}</div>
-                    </div>
-                `;
-            });
 
-            document.getElementById('ejemplosPositivos').innerHTML = htmlPos;
-            document.getElementById('ejemplosNegativos').innerHTML = htmlNeg;
-        }
+        // Mostrar dentro de los cuadros de positivos y negativos
+        document.getElementById("comentariosPositivos").innerHTML =
+            posEjemplo.length ? posEjemplo.map(formatearComentario).join("") :
+            "<p>No hay comentarios positivos.</p>";
+
+        document.getElementById("comentariosNegativos").innerHTML =
+            negEjemplo.length ? negEjemplo.map(formatearComentario).join("") :
+            "<p>No hay comentarios negativos.</p>";
+    }
+
 
         function updateRangeUI() {
             if (!minHandle || !maxHandle) return;
@@ -665,6 +698,89 @@
             maxHandle.value = Math.min(parseInt(maxHandle.max,10), parseInt(maxHandle.value,10));
             clampHandles();
         }
+
+        // ---------- funciones para elegir aleatorios ----------
+        function shuffleInplace(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+        }
+
+        function sampleArray(arr, n) {
+            const copy = arr.slice();
+            shuffleInplace(copy);
+            return copy.slice(0, n);
+        }
+
+                function renderCommentList(containerId, items, title, emptyMsg) {
+            const cont = document.getElementById(containerId);
+            if (!items || items.length === 0) {
+                cont.innerHTML = `<p style="color:#666; margin:8px 0;">${emptyMsg}</p>`;
+                return;
+            }
+            const isNegatives = title.includes('Negativos');
+            let html = `<h3 style="margin-bottom:12px;">${title}</h3>`;
+            items.forEach(r => {
+                const cls = isNegatives ? 'negativo' : '';
+                html += `
+                    <div class="comment-card ${cls}">
+                        <div class="comment-header">
+                            <span>⭐ ${r.Puntuación} - ${r.Nombre || 'Anónimo'}</span>
+                            <span>${r.Fecha || ''}</span>
+                        </div>
+                        <div class="comment-text">${r.Comentario || ''}</div>
+                        ${r['Platos recomendados'] ? `<div class="comment-meta">🍽️ ${r['Platos recomendados']}</div>` : ''}
+                    </div>
+                `;
+            });
+            cont.innerHTML = html;
+        }
+
+
+        // Botones: usar FILTRADO actual, si no alcanza, completar desde dataGlobal
+        document.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'randomPosBtn') {
+                const filtered = filtrarDatos();
+                let pool = filtered.filter(r => r.Puntuación >= 4 && r.Comentario);
+                let fallbackNote = '';
+                if (pool.length < 3) {
+                    const need = 3 - pool.length;
+                    const fromFull = dataGlobal.filter(r => r.Puntuación >= 4 && r.Comentario && !pool.includes(r));
+                    pool = pool.concat(sampleArray(fromFull, need));
+                    fallbackNote = pool.length < 3 ? ' (no hay suficientes en el dataset)' : ' (completo desde dataset completo)';
+                }
+                const chosen = sampleArray(pool, Math.min(3, pool.length));
+                renderCommentList('randomPosContainer', chosen, '✨ 3 Comentarios Positivos Aleatorios', 'No hay comentarios positivos disponibles en el filtro o dataset.');
+                if (fallbackNote) {
+                    const note = document.createElement('div');
+                    note.style.color = '#666';
+                    note.style.marginTop = '6px';
+                    note.textContent = fallbackNote;
+                    document.getElementById('randomPosContainer').appendChild(note);
+                }
+            }
+            if (e.target && e.target.id === 'randomNegBtn') {
+                const filtered = filtrarDatos();
+                let pool = filtered.filter(r => r.Puntuación <= 2 && r.Comentario);
+                let fallbackNote = '';
+                if (pool.length < 3) {
+                    const need = 3 - pool.length;
+                    const fromFull = dataGlobal.filter(r => r.Puntuación <= 2 && r.Comentario && !pool.includes(r));
+                    pool = pool.concat(sampleArray(fromFull, need));
+                    fallbackNote = pool.length < 3 ? ' (no hay suficientes en el dataset)' : ' (completo desde dataset completo)';
+                }
+                const chosen = sampleArray(pool, Math.min(3, pool.length));
+                renderCommentList('randomNegContainer', chosen, '⚠️ 3 Comentarios Negativos Aleatorios', 'No hay comentarios negativos disponibles en el filtro o dataset.');
+                if (fallbackNote) {
+                    const note = document.createElement('div');
+                    note.style.color = '#666';
+                    note.style.marginTop = '6px';
+                    note.textContent = fallbackNote;
+                    document.getElementById('randomNegContainer').appendChild(note);
+                }
+            }
+        });
 
     </script>
 </body>

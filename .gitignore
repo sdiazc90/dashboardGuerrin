@@ -17,4 +17,10 @@ reseñas_ejemplo.csv
 reseñas_rapido.txt
 .dockerignore
 requirements.txt
-
+reseñas_parcial_manual_or_target.html
+reseñas.csv
+reseñas_2025-11-11.csv
+reviews_con_fechas.csv
+scraperreviesnuevas.py
+delhtml.py
+juntandoscraps.py
