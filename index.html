@@ -556,7 +556,7 @@
             const stopwords = new Set(['que','los','las','una','uno','para','con','por','del','este','esta','estos','estas',
                 'mas','pero','sus','fue','sido','esta','estan','muy','todo','todos','tiene','tienen',
                 'hace','hacer','desde','sobre','como','donde','cuando','quien','cual','entre','sin',
-                'hasta','hay','era','son','nos','bien','tan','ese','esa','otro','otra','muy']);
+                'hasta','hay','era','son','nos','bien','tan','ese','esa','otro','otra','muy','dale','acerque','mencione']);
             const textoNorm = quitarAcentos(texto.toLowerCase());
             const palabras = textoNorm.match(/\b[a-z]{3,}\b/g) || [];
             return palabras.filter(p => !stopwords.has(p)).map(p => {
