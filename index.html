@@ -566,6 +566,7 @@
             });
         }
 
+        /* ------------------ función integrada y completa solicitada ------------------ */
         function crearGraficoPalabras(data) {
             const dataPos = data.filter(r => r.Puntuación > 3 && r.Comentario);
             const dataNeg = data.filter(r => r.Puntuación < 3 && r.Comentario);
@@ -576,24 +577,86 @@
             dataPos.forEach(r => extraerPalabras(r.Comentario).forEach(p => palabrasPos[p] = (palabrasPos[p]||0)+1));
             dataNeg.forEach(r => extraerPalabras(r.Comentario).forEach(p => palabrasNeg[p] = (palabrasNeg[p]||0)+1));
 
+            // eliminar palabras que aparecen en ambos para evitar ambigüedad
             Object.keys(palabrasPos).forEach(p => { if (palabrasNeg[p]) { delete palabrasPos[p]; delete palabrasNeg[p]; } });
 
-            const topPos = Object.entries(palabrasPos).sort((a,b)=>b[1]-a[1]).slice(0,7);
-            const topNeg = Object.entries(palabrasNeg).sort((a,b)=>b[1]-a[1]).slice(0,7);
+            const topN = 7;
+            const topPos = Object.entries(palabrasPos).sort((a,b)=>b[1]-a[1]).slice(0,topN);
+            const topNeg = Object.entries(palabrasNeg).sort((a,b)=>b[1]-a[1]).slice(0,topN);
 
-            const palabras = [...topPos.map(p=>p[0]), ...topNeg.map(p=>p[0])];
-            const valores = [...topPos.map(p=>p[1]), ...topNeg.map(p=>-p[1])];
-            
-            const colors = [
-                ...topPos.map((_,i)=>`rgb(${Math.round(i*255/7)}, ${100+Math.round(i*155/7)}, 0)`),
-                ...topNeg.map((_,i)=>`rgb(255, ${255 - Math.round(i*255/7)}, 0)`)
-            ];
+            // POSITIVAS: ordenar descendente (mayor -> menor) => más positivas a la IZQUIERDA
+            const posSorted = topPos.slice().sort((a,b)=>b[1]-a[1]);
 
-            const trace = { x: palabras, y: valores, type: 'bar', marker: { color: colors }, text: valores.map(v=>Math.abs(v)), textposition:'outside' };
-            const layout = { xaxis:{ title: 'Palabras', tickangle:-45 }, yaxis:{ title: 'Frecuencia neta (pos - neg)' }, showlegend:false, height:500 };
+            // NEGATIVAS: ordenar ASCENDENTE (menor -> mayor) => menos negativas cerca del CENTRO, más negativas al EXTREMO DERECHO
+            const negSorted = topNeg.slice().sort((a,b)=>a[1]-b[1]);
+
+            // etiquetas: primero positivas (izquierda), luego negativas (derecha)
+            const palabras = [...posSorted.map(p => p[0]), ...negSorted.map(p => p[0])];
+
+            // valores: positivas >0 (arriba), negativas como números negativos (hacia abajo)
+            const valores = [...posSorted.map(p => p[1]), ...negSorted.map(p => -p[1])];
+
+            // ------------------ paleta sutil de 14 pasos (verde -> amarillo -> rojo) ------------------
+            function lerp(a,b,t){ return Math.round(a + (b - a) * t); }
+            // stops: green RGB(0,128,0) -> yellow RGB(255,255,0) -> red RGB(255,0,0)
+            const palette14 = [];
+            for (let i=0;i<14;i++){
+                const t = i / 13; // 0..1
+                let r,g,b;
+                if (t <= 0.5){
+                    const tLocal = t/0.5;
+                    r = lerp(0,255,tLocal);
+                    g = lerp(128,255,tLocal);
+                    b = 0;
+                } else {
+                    const tLocal = (t-0.5)/0.5;
+                    r = 255;
+                    g = lerp(255,0,tLocal);
+                    b = 0;
+                }
+                palette14.push(`rgb(${r}, ${g}, ${b})`);
+            }
+
+            // asignar color por posición (izquierda->derecha) tomando la paleta de 14 pasos.
+            // Si hay exactamente 14 palabras, cada una toma un stop.
+            // Si hay menos/más, mapeamos proporcionalmente.
+            const total = palabras.length || 14;
+            const colors = [];
+            for (let i=0;i<total;i++){
+                // índice en 0..13
+                const idx = palette14.length === 1 ? 0 : Math.round(i * (palette14.length - 1) / (total - 1 || 1));
+                colors.push(palette14[idx]);
+            }
+            // ------------------------------------------------------------------------------------------
+
+            // calcular rango Y para mostrar bien barras arriba y abajo
+            const maxPos = posSorted.length ? Math.max(...posSorted.map(p => p[1])) : 1;
+            const maxNeg = negSorted.length ? Math.max(...negSorted.map(p => p[1])) : 1;
+            const yMax = Math.ceil(maxPos * 1.12) + 1;
+            const yMin = - (Math.ceil(maxNeg * 2) + 1);
+
+            const trace = {
+                x: palabras,
+                y: valores,
+                type: 'bar',
+                marker: { color: colors, line: { color: 'black', width: 1 } },
+                text: valores.map(v => Math.abs(v)),
+                textposition: 'outside',
+                hoverinfo: 'x+y+text'
+            };
+
+            const layout = {
+                xaxis: { title: 'Palabras', tickangle: -45, automargin: true },
+                yaxis: { title: 'Frecuencia (positivas arriba, negativas abajo)', range: [yMin, yMax], zeroline: true, zerolinewidth: 2 },
+                showlegend: false,
+                bargap: 0.22,
+                height: 500,
+                margin: { t: 30, b: 140 }
+            };
 
             Plotly.newPlot('palabrasChart', [trace], layout, plotlyConfig);
         }
+        /* ------------------------------------------------------------------------------- */
 
         // --------- Temporal ----------
         function crearGraficoTemporal(data) {
